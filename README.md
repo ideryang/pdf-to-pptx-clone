@@ -2,7 +2,9 @@
 
 A Claude Code skill for turning design-rich PDFs into editable PPTX — either as **pixel-faithful clones** or as **design siblings** (new content, inherited design language).
 
-`.skill` file: **`pdf-to-pptx-clone.skill`** (drop into Claude Code, or unzip into `~/.claude/skills/`)
+> **👋 设计师朋友 / not familiar with Git?** Read **[START-HERE.md](START-HERE.md)** for a GUI-only walkthrough — install, use, push changes, pull updates — no command line except a single dependency install step.
+
+The rest of this README is the technical comparison vs. the original prompt this skill was built from; install instructions are at the bottom.
 
 ---
 
