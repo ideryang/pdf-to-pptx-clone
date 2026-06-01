@@ -81,6 +81,28 @@ All placeholder rules from the user's brief apply unconditionally:
 
 Even if the reference PDF contains real-looking names (e.g. "Presented by Pedro Ferrandes"), the new deck must use placeholders. Don't paraphrase the reference's names — replace them with the placeholder set above.
 
+## Imagery is not optional
+
+A sibling deck that contains only PIL-generated shapes (rectangles, parallelograms, gradients, line drawings) reads as empty — even when the typography and layout are correct. Designers will say "it has no images." Always audit the deck against the reference: count how many slides in the reference have actual photography or substantive illustration. The sibling should hit at least that ratio.
+
+Concrete moves:
+
+- **Cover and closing**: always include a real image (B&W or toned photo) as a hero block, not just shape decoration.
+- **Section / pillar / agenda pages**: pair the structural geometry with one photographic anchor — a banner strip, a side card, or a small block inside a colored card.
+- **Match the reference's image treatment**: if the reference uses B&W high-contrast photography (deck 212), do the same. If it uses warm-toned editorial (deck 211), do warm-toned. If it uses dark cinematic (deck 215), do dark cinematic. Don't ship a sibling with photography in a treatment the reference didn't use.
+
+Implementation pattern using Picsum (no API key) + PIL:
+
+```python
+def make_bw_photo(seed, w, h, contrast_cutoff=2):
+    urlretrieve(f"https://picsum.photos/seed/{seed}/{w}/{h}", src)
+    img = Image.open(src).convert("L")
+    img = ImageOps.autocontrast(img, cutoff=contrast_cutoff)
+    img.convert("RGB").save(dest, "JPEG", quality=90)
+```
+
+For higher fidelity use Pexels via `substitute_images.py` with topic-relevant queries (data center / studio / venue / etc.) — Picsum random works for atmosphere but won't match topic.
+
 ## PIL gradient gotcha (learned the hard way)
 
 When generating soft radial gradients with PIL (e.g., editorial peach/blue blobs as background accents), Gaussian blur needs **room outside the visible blob to fade into**. If the ellipse is drawn near the canvas edge, the blur kernel runs out of canvas and the gradient ends in a sharp visible line — looks "cropped".
