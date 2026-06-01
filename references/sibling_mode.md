@@ -81,6 +81,35 @@ All placeholder rules from the user's brief apply unconditionally:
 
 Even if the reference PDF contains real-looking names (e.g. "Presented by Pedro Ferrandes"), the new deck must use placeholders. Don't paraphrase the reference's names — replace them with the placeholder set above.
 
+## Prefetch every photo in parallel before composing slides
+
+Serial `urlretrieve(...)` for 15+ photos is the single biggest cause of slow sibling builds. Always declare every photo seed your build will need at the top of the script, then prefetch them all in a thread pool. After that, every `make_*_photo()` call hits a local file — instant.
+
+```python
+from concurrent.futures import ThreadPoolExecutor
+
+PHOTO_SPECS = [
+    ("cover_a",          1200, 1080),
+    ("founder_office",    840,  960),
+    ("product_card_1",    840,  440),
+    # ... declare every photo you'll need
+]
+
+def prefetch_all():
+    work = [(f"https://picsum.photos/seed/{s}/{w}/{h}",
+             IMG_DIR / f"photo_{s}_{w}x{h}.jpg")
+            for s, w, h in PHOTO_SPECS]
+    work = [(u, d) for u, d in work if not d.exists()]
+    if not work:
+        return
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        list(ex.map(lambda uv: urlretrieve(uv[0], uv[1]), work))
+
+prefetch_all()  # before any slide_xxx() calls
+```
+
+If you use Pexels instead of Picsum, the same pattern applies — fan the search requests out via a thread pool. Pexels free tier allows 200 requests/hour, far more than any single deck needs.
+
 ## Photo clip shapes are part of the design language
 
 Designed PDFs frequently clip photos into non-rectangular shapes — parallelograms, hexagons, rounded rectangles, hard-edged cutouts. The clip shape carries as much design DNA as the palette or typography. A sibling deck that places plain rectangular photos against a reference that used parallelogram-clipped photos looks "off" in a way that's hard to articulate but immediately visible to designers.

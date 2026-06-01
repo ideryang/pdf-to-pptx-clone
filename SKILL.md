@@ -9,7 +9,9 @@ This skill turns a design-rich PDF into an editable PPTX, in one of two modes �
 
 ## How to invoke this skill
 
-When this skill activates, the first thing to do is figure out **which mode** the user wants. If their request makes it obvious (e.g. "clone this PDF as a PPT" → Clone, "make a sibling deck inspired by this" → Sibling, "make a deck inspired by but about X" → Sibling with topic already set), proceed directly. Otherwise ask using `AskUserQuestion` with these two options:
+> **Speed matters.** Read `references/performance.md` before you start. The wrong pattern turns a 1-minute build into a 9-minute build. The two biggest wins: parallelize stock-photo HTTP fetches via `ThreadPoolExecutor`, and *do not* render source-PDF pages or read multiple sample images "for context" — Claude can describe the design from `pages.json` and `design_tokens.json`.
+
+When this skill activates, the first thing to do is figure out **which mode** the user wants. If their request makes it obvious (e.g. "clone this PDF as a PPT" → Clone, "make a sibling deck inspired by this" → Sibling, "make a deck inspired by but about X" → Sibling with topic already set), **proceed directly — do not ask redundant questions.** Otherwise ask using `AskUserQuestion` with these two options:
 
 > **How should I process this PDF?**
 >
@@ -52,6 +54,16 @@ If the user already named a topic in their original request, skip this question 
 
 - **Clone mode** → run stages 1, 2, 2a, (optionally 3), and 4 as documented below. This is the default body of this file.
 - **Sibling mode** → run stages 1 and 2 to extract the reference's design tokens, then follow `references/sibling_mode.md` for composition (do **not** use `build_pptx.py` — sibling layouts are composed by hand in python-pptx, not templated).
+
+### Fast path
+
+For most invocations, do this:
+
+```bash
+python3 scripts/run_pipeline.py <pdf_path> <workspace>
+```
+
+That single command does extract + tokens + font install in one Python process. Then read `design_tokens.json` and proceed. Don't render source-PDF pages or read sample images unless the user explicitly asks to see them.
 
 ---
 
@@ -206,3 +218,4 @@ The pipeline targets the **像素级还原** mode — keep original proportions 
 - `references/font_mapping.md` — common PDF font → PPT-safe font substitutions
 - `references/pipeline.md` — deeper notes on each stage's edge cases (CID fonts, clipped images, embedded SVG)
 - `references/sibling_mode.md` — when the user wants a *new* deck inspired by the PDF (different content, similar design language), follow this. Includes anti-patterns ("don't drift into the default Claude editorial aesthetic"), variation rules, and the audit checklist.
+- `references/performance.md` — how to make the skill feel fast. **Read this first.** The single biggest win is parallel photo fetching; the second biggest is not over-narrating during execution.
