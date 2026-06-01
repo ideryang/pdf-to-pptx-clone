@@ -14,6 +14,7 @@ import json
 import sys
 from pathlib import Path
 
+from PIL import Image, ImageDraw
 from pptx import Presentation
 from pptx.dml.color import RGBColor
 from pptx.enum.shapes import MSO_SHAPE
@@ -92,6 +93,18 @@ def add_text_span(slide, span: dict, overrides: dict, slide_width_pt: float):
         run.font.color.rgb = color
 
 
+def _apply_clip_polygon(src_path: Path, dest_path: Path,
+                        polygon_local: list[tuple[float, float]]) -> None:
+    """Apply a polygon alpha mask to src_path, save to dest_path. The polygon
+    is in the image's local pixel coordinates (already mapped from bbox)."""
+    img = Image.open(src_path).convert("RGBA")
+    w, h = img.size
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).polygon(polygon_local, fill=255)
+    img.putalpha(mask)
+    img.save(dest_path, "PNG")
+
+
 def add_image(slide, img_spec: dict, workspace: Path,
               slide_w: float, slide_h: float):
     bbox = img_spec.get("bbox")
@@ -114,6 +127,23 @@ def add_image(slide, img_spec: dict, workspace: Path,
     if not path.exists():
         print(f"  ! image file missing for {img_id}, skipping", file=sys.stderr)
         return
+
+    # If the source PDF clipped this image to a non-rectangular polygon
+    # (parallelogram, hexagon, etc.) — apply that as a PIL alpha mask before
+    # inserting. PowerPoint doesn't natively support polygon-clipped pictures.
+    clip = img_spec.get("clip_polygon")
+    if clip:
+        bbox_w = x1 - x0
+        bbox_h = y1 - y0
+        with Image.open(path) as probe:
+            iw, ih = probe.size
+        sx = iw / bbox_w
+        sy = ih / bbox_h
+        # Convert polygon from page coords to image-local pixel coords
+        local = [((px - x0) * sx, (py - y0) * sy) for px, py in clip]
+        clipped_path = workspace / "original_images" / f"{img_id}_clipped.png"
+        _apply_clip_polygon(path, clipped_path, local)
+        path = clipped_path
 
     slide.shapes.add_picture(
         str(path),

@@ -2,6 +2,12 @@
 
 All notable changes to this skill. Newest first.
 
+## v0.5 — 2026-06-01
+
+### Added
+- **Photo clip-shape recovery.** `extract_pdf.py` now parses the PDF content stream for `W` / `W*` clipping operators with full CTM-stack tracking, matches the resulting polygons to images by bbox overlap, and stores them as `clip_polygon` fields in `pages.json`. `build_pptx.py` applies the polygon as a PIL alpha mask before inserting the picture, so clone-mode PPTX inherits parallelogram, hexagon, and other shape-clipped photo treatments that the source PDF used as design language. Fixes the "photo looks stuck on as a plain rectangle" issue against design references that systematically clip imagery.
+- **`references/sibling_mode.md`** gained a "Photo clip shapes are part of the design language" section with a reusable `make_clipped_photo` recipe so sibling-mode decks can match the reference's clip-shape vocabulary.
+
 ## v0.4 — 2026-06-01
 
 ### Added

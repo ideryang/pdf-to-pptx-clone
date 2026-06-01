@@ -81,6 +81,34 @@ All placeholder rules from the user's brief apply unconditionally:
 
 Even if the reference PDF contains real-looking names (e.g. "Presented by Pedro Ferrandes"), the new deck must use placeholders. Don't paraphrase the reference's names — replace them with the placeholder set above.
 
+## Photo clip shapes are part of the design language
+
+Designed PDFs frequently clip photos into non-rectangular shapes — parallelograms, hexagons, rounded rectangles, hard-edged cutouts. The clip shape carries as much design DNA as the palette or typography. A sibling deck that places plain rectangular photos against a reference that used parallelogram-clipped photos looks "off" in a way that's hard to articulate but immediately visible to designers.
+
+**What the skill does for you**: `extract_pdf.py` parses the PDF content stream for `W` and `W*` operators, tracks the CTM stack, and attaches the resulting polygons to the images they clip. Each image entry in `pages.json` may include a `clip_polygon` field with vertices in top-down page coordinates. In **clone mode**, `build_pptx.py` automatically applies that polygon as a PIL alpha mask before inserting the picture — fidelity comes for free.
+
+**What you do in sibling mode**: inspect `pages.json` for representative images. If their `clip_polygon` fields show a consistent shape vocabulary (e.g. parallelograms across multiple pages), reuse that vocabulary in your sibling build:
+
+```python
+def make_clipped_photo(seed, w, h, *, shape="parallelogram_right",
+                        skew_frac=0.18):
+    base = make_bw_photo(seed, w, h)
+    img = Image.open(base).convert("RGBA")
+    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)
+    skew = int(h * skew_frac)
+    if shape == "parallelogram_right":
+        points = [(skew, 0), (w, 0), (w - skew, h), (0, h)]
+    elif shape == "parallelogram_left":
+        points = [(0, 0), (w - skew, 0), (w, h), (skew, h)]
+    # ...add hexagon, corner_cut, etc. as needed
+    draw.polygon(points, fill=255)
+    img.putalpha(mask)
+    img.save(dest, "PNG")
+```
+
+The sibling doesn't have to copy the reference polygon vertex-for-vertex — that would be too literal. Match the shape *family* (parallelogram → parallelogram, hexagon → hexagon) and the lean direction, and the deck will read as a sibling rather than a clone or an unrelated piece.
+
 ## Imagery is not optional
 
 A sibling deck that contains only PIL-generated shapes (rectangles, parallelograms, gradients, line drawings) reads as empty — even when the typography and layout are correct. Designers will say "it has no images." Always audit the deck against the reference: count how many slides in the reference have actual photography or substantive illustration. The sibling should hit at least that ratio.

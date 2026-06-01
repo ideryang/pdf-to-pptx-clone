@@ -17,6 +17,144 @@ from pathlib import Path
 import fitz  # PyMuPDF
 
 
+def extract_clip_paths(page: fitz.Page) -> list[list[tuple[float, float]]]:
+    """Parse the page's content stream for clipping path operators (W, W*)
+    and return their polygons in top-down page coordinates.
+
+    PyMuPDF's get_drawings() intentionally omits clip paths — they are only
+    visible by walking the raw content stream. We track the CTM stack so
+    polygons land in user-space coordinates that match every other bbox in
+    pages.json.
+
+    Returned polygons are deduplicated and filtered: full-page clips and
+    pure rectangles are dropped (those are uninteresting for design
+    inheritance — only the truly shaped clips, like parallelograms used to
+    mask photos, are returned).
+    """
+    try:
+        content = page.read_contents().decode("latin-1", errors="replace")
+    except Exception:
+        return []
+
+    tokens = content.split()
+    page_h = page.rect.height
+    page_area = page.rect.width * page_h
+
+    ctm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    ctm_stack: list[tuple] = []
+    current_path: list[tuple[float, float]] = []
+    captured: list[list[tuple[float, float]]] = []
+
+    def apply(x, y):
+        a, b, c, d, e, f = ctm
+        return (a * x + c * y + e, b * x + d * y + f)
+
+    def mul(m1, m2):
+        a1, b1, c1, d1, e1, f1 = m1
+        a2, b2, c2, d2, e2, f2 = m2
+        return [a1 * a2 + b1 * c2, a1 * b2 + b1 * d2,
+                c1 * a2 + d1 * c2, c1 * b2 + d1 * d2,
+                e1 * a2 + f1 * c2 + e2, e1 * b2 + f1 * d2 + f2]
+
+    nums: list[float] = []
+    for tok in tokens:
+        try:
+            nums.append(float(tok))
+            continue
+        except ValueError:
+            pass
+        op = tok
+        if op == "q":
+            ctm_stack.append(tuple(ctm))
+        elif op == "Q" and ctm_stack:
+            ctm = list(ctm_stack.pop())
+        elif op == "cm" and len(nums) == 6:
+            ctm = mul(nums, ctm)
+        elif op == "m" and len(nums) == 2:
+            current_path.append(apply(nums[0], nums[1]))
+        elif op == "l" and len(nums) == 2:
+            current_path.append(apply(nums[0], nums[1]))
+        elif op == "c" and len(nums) == 6:
+            current_path.append(apply(nums[4], nums[5]))
+        elif op == "re" and len(nums) == 4:
+            x, y, w, h = nums
+            for px, py in [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]:
+                current_path.append(apply(px, py))
+        elif op in ("W", "W*"):
+            if current_path:
+                # Flip Y (PDF user space has Y up) → top-down
+                poly = [(round(x, 2), round(page_h - y, 2))
+                        for x, y in current_path]
+                # Deduplicate consecutive identical points
+                deduped: list[tuple[float, float]] = []
+                for p in poly:
+                    if not deduped or deduped[-1] != p:
+                        deduped.append(p)
+                # Drop closing duplicate
+                if len(deduped) > 1 and deduped[0] == deduped[-1]:
+                    deduped = deduped[:-1]
+                if len(deduped) >= 3:
+                    # Filter: skip pure rectangles (uninteresting)
+                    xs = {round(p[0], 1) for p in deduped}
+                    ys = {round(p[1], 1) for p in deduped}
+                    is_rect = len(xs) <= 2 and len(ys) <= 2
+                    # Filter: skip full-page clips
+                    bbox_w = max(p[0] for p in deduped) - min(p[0] for p in deduped)
+                    bbox_h = max(p[1] for p in deduped) - min(p[1] for p in deduped)
+                    if not is_rect and bbox_w * bbox_h < page_area * 0.95:
+                        captured.append(deduped)
+        elif op in ("n", "f", "F", "f*", "S", "s", "B", "B*", "b", "b*"):
+            current_path = []
+        nums = []
+
+    # Dedup identical polygons
+    seen = set()
+    unique: list[list[tuple[float, float]]] = []
+    for poly in captured:
+        key = tuple(poly)
+        if key not in seen:
+            seen.add(key)
+            unique.append(poly)
+    return unique
+
+
+def match_clip_to_image(clip_polys: list, images: list[dict]) -> None:
+    """Assign each clip polygon to its most likely image by bbox overlap.
+    Mutates the image dicts in place — adds 'clip_polygon' field (list of
+    [x, y] points in top-down page coordinates) when a match is found.
+    """
+    for poly in clip_polys:
+        xs = [p[0] for p in poly]
+        ys = [p[1] for p in poly]
+        clip_bbox = (min(xs), min(ys), max(xs), max(ys))
+        best_img = None
+        best_overlap = 0.0
+        for img in images:
+            if img.get("clip_polygon"):
+                continue  # already assigned
+            ib = img.get("bbox")
+            if not ib:
+                continue
+            ix0, iy0, ix1, iy1 = ib
+            # Compute IoU-ish: intersection area / clip-bbox area
+            ox0 = max(clip_bbox[0], ix0)
+            oy0 = max(clip_bbox[1], iy0)
+            ox1 = min(clip_bbox[2], ix1)
+            oy1 = min(clip_bbox[3], iy1)
+            if ox1 <= ox0 or oy1 <= oy0:
+                continue
+            ov = (ox1 - ox0) * (oy1 - oy0)
+            clip_area = (clip_bbox[2] - clip_bbox[0]) * (clip_bbox[3] - clip_bbox[1])
+            if clip_area <= 0:
+                continue
+            score = ov / clip_area
+            if score > best_overlap:
+                best_overlap = score
+                best_img = img
+        if best_img is not None and best_overlap > 0.5:
+            best_img["clip_polygon"] = [[p[0], p[1]] for p in poly]
+
+
 def rgb_int_to_hex(c: int) -> str:
     r = (c >> 16) & 0xFF
     g = (c >> 8) & 0xFF
@@ -261,11 +399,20 @@ def main():
     doc = fitz.open(pdf_path)
     pages = []
     total_icons = 0
+    total_clips = 0
     for i, page in enumerate(doc):
         w, h = page.rect.width, page.rect.height
         text_spans = extract_text_spans(page)
         images = extract_images(page, i + 1, img_dir)
         drawings = extract_drawings(page)
+
+        # Parse clip paths from the content stream and attach the matching
+        # polygon to each image. Templates like deck 212 use parallelogram-
+        # shaped clip masks on photos as a signature design move; without
+        # this step, both clone and sibling lose that visual language.
+        clip_polys = extract_clip_paths(page)
+        match_clip_to_image(clip_polys, images)
+        total_clips += sum(1 for img in images if img.get("clip_polygon"))
 
         # Detect, rasterize, and substitute icon-like vector clusters
         icons, drop_indices = extract_icons(
@@ -295,7 +442,8 @@ def main():
     (workspace / "pages.json").write_text(json.dumps(out, indent=2, ensure_ascii=False))
     print(f"Extracted {len(pages)} pages → {workspace / 'pages.json'}")
     total_images = sum(len(p['images']) for p in pages)
-    print(f"Saved {total_images} images ({total_icons} rasterized icons) → {img_dir}")
+    print(f"Saved {total_images} images ({total_icons} rasterized icons, "
+          f"{total_clips} with clip polygons) → {img_dir}")
 
 
 if __name__ == "__main__":
