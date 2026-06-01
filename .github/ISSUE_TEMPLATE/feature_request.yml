@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest a capability or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the underlying problem?
+      description: What were you trying to do that the skill couldn't handle well? Concrete example beats abstract description.
+      placeholder: |
+        The reference PDF I'm working with is portrait/A4, but sibling mode always produces 16:9. I wanted A4 portrait output to match the source's format.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: How might the skill handle this? Code-level sketches welcome but not required.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Which part of the skill is affected?
+      multiple: true
+      options:
+        - SKILL.md (invocation flow / docs)
+        - extract_pdf.py
+        - extract_design_tokens.py
+        - install_google_fonts.py
+        - substitute_images.py
+        - build_pptx.py
+        - references/sibling_mode.md
+        - references/pipeline.md
+        - references/font_mapping.md
+        - new file / new capability
+        - not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Current workaround (if any)
+      description: How are you getting around this today? Useful context for prioritisation.

@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in the skill didn't behave as expected
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you ask the skill to do, and what did it produce?
+      placeholder: |
+        I ran extract_pdf.py on /path/to/my.pdf. It crashed with "Object of type Rect is not JSON serializable".
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: How should it have behaved?
+    validations:
+      required: true
+
+  - type: input
+    id: stage
+    attributes:
+      label: Which pipeline stage
+      description: extract_pdf.py / extract_design_tokens.py / install_google_fonts.py / substitute_images.py / build_pptx.py / sibling-mode composition / not sure
+      placeholder: "e.g. build_pptx.py"
+
+  - type: textarea
+    id: pdf-characteristics
+    attributes:
+      label: Source PDF characteristics
+      description: Page count, page size, fonts (if you know), is it mostly photos / mostly text / mostly vector illustration?
+      placeholder: |
+        10 pages, 1440×810pt, looks like a Canva pitch deck with serif typography and a star-shaped peach gradient on the cover.
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, output of `pip list | grep -E 'PyMuPDF|python-pptx|Pillow|fonttools'`
+      render: shell
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / stack trace
+      render: shell

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How to use the skill
+    url: https://github.com/ideryang/pdf-to-pptx-clone#readme
+    about: Installation and the comparison with the original prompt — start here for usage questions.
+  - name: How to contribute changes
+    url: https://github.com/ideryang/pdf-to-pptx-clone/blob/main/CONTRIBUTING.md
+    about: Workflow for proposing and merging changes.
