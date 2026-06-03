@@ -105,6 +105,39 @@ def _apply_clip_polygon(src_path: Path, dest_path: Path,
     img.save(dest_path, "PNG")
 
 
+def _apply_cover_crop(pic, image_path: Path, bbox_w: float, bbox_h: float) -> None:
+    """Crop the inserted picture so its visible area is object-fit:cover for
+    the bbox aspect ratio. Preserves the shape's width/height (the layout
+    grid stays intact) and just adjusts what part of the image you see.
+    Borrowed from the pptx-design-fix skill — without this, python-pptx
+    stretches the image to fill the bbox, distorting people, logos, etc.
+    """
+    if bbox_w <= 0 or bbox_h <= 0:
+        return
+    try:
+        with Image.open(image_path) as probe:
+            iw, ih = probe.size
+    except Exception:
+        return
+    if iw <= 0 or ih <= 0:
+        return
+    img_aspect = iw / ih
+    bbox_aspect = bbox_w / bbox_h
+    if abs(img_aspect - bbox_aspect) < 0.005:
+        return  # already matches; no crop needed
+    pic.crop_left = pic.crop_right = pic.crop_top = pic.crop_bottom = 0
+    if img_aspect > bbox_aspect:
+        # Image is wider than bbox — trim left + right
+        crop = (1 - bbox_aspect / img_aspect) / 2
+        pic.crop_left = crop
+        pic.crop_right = crop
+    else:
+        # Image is taller — trim top + bottom
+        crop = (1 - img_aspect / bbox_aspect) / 2
+        pic.crop_top = crop
+        pic.crop_bottom = crop
+
+
 def add_image(slide, img_spec: dict, workspace: Path,
               slide_w: float, slide_h: float):
     bbox = img_spec.get("bbox")
@@ -145,11 +178,16 @@ def add_image(slide, img_spec: dict, workspace: Path,
         _apply_clip_polygon(path, clipped_path, local)
         path = clipped_path
 
-    slide.shapes.add_picture(
+    pic = slide.shapes.add_picture(
         str(path),
         pt_to_emu(x0c), pt_to_emu(y0c),
         pt_to_emu(x1c - x0c), pt_to_emu(y1c - y0c),
     )
+    # Skip cover-crop when a polygon clip is already applied — the PNG
+    # already encodes its own crop via alpha; further cropping would
+    # cut into the visible polygon.
+    if not clip:
+        _apply_cover_crop(pic, path, x1c - x0c, y1c - y0c)
 
 
 def add_drawing(slide, d: dict, slide_w: float, slide_h: float):

@@ -219,3 +219,4 @@ The pipeline targets the **像素级还原** mode — keep original proportions 
 - `references/pipeline.md` — deeper notes on each stage's edge cases (CID fonts, clipped images, embedded SVG)
 - `references/sibling_mode.md` — when the user wants a *new* deck inspired by the PDF (different content, similar design language), follow this. Includes anti-patterns ("don't drift into the default Claude editorial aesthetic"), variation rules, and the audit checklist.
 - `references/performance.md` — how to make the skill feel fast. **Read this first.** The single biggest win is parallel photo fetching; the second biggest is not over-narrating during execution.
+- `references/post_build_fixes.md` — run `audit.py` and `bake_autofit.py` after building. Catches image distortion, off-canvas elements, sub-9pt text, and text-frame overlap; bakes the autofit fontScale so PowerPoint reliably shrinks text. Both adopted from the sibling `pptx-design-fix` skill.

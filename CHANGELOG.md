@@ -2,6 +2,21 @@
 
 All notable changes to this skill. Newest first.
 
+## v0.7 — 2026-06-01
+
+### Added
+- **Auto cover-crop for distorted images.** `build_pptx.py` now detects when an inserted image's aspect ratio doesn't match its bbox and applies PowerPoint's native `crop_left/right/top/bottom` to fit it `object-fit: cover` style — without resizing the shape. Faces stop flattening, logos stop squashing. Skipped when a polygon clip is already baked into the PNG.
+- **`scripts/audit.py`** — post-build report. Finds image distortion, off-canvas elements, sub-9pt text, and substantive text-frame overlaps. Exit code 1 on issues, 0 on clean.
+- **`scripts/bake_autofit.py`** — pre-computes `<a:normAutofit/>` fontScale via Pillow + actual TTF measurement and writes it into the XML so PowerPoint, Keynote, and LibreOffice all shrink text consistently. Without this, python-pptx's edits can silently break PowerPoint's runtime autofit and text overflows.
+- **`references/post_build_fixes.md`** — documents the audit + cover-crop + bake_autofit recipe.
+
+### Credit
+Cover-crop technique, audit pattern, and the bake_autofit script are adopted from the sibling `pptx-design-fix` skill by a colleague. Their skill polishes existing PPTX files; this one generates PPTX from PDF references. The two compose naturally.
+
+## v0.6 — 2026-06-01
+
+Speed pass: `scripts/run_pipeline.py` (single-process extract → tokens → fonts), `references/performance.md` with parallel-fetch pattern, SKILL.md tightened to skip redundant questions and avoid over-narration.
+
 ## v0.5 — 2026-06-01
 
 ### Added
